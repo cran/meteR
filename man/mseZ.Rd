@@ -7,8 +7,8 @@
 \usage{
 mseZ(x, ...)
 
-\method{mseZ}{meteDist}(x, nrep, return.sim = FALSE, type = c("rank",
-  "cumulative"), ...)
+\method{mseZ}{meteDist}(x, nrep, return.sim = TRUE, type = c("rank",
+  "cumulative"), relative = TRUE, log = FALSE, ...)
 }
 \arguments{
 \item{x}{a \code{meteDist} object}
@@ -20,12 +20,15 @@ mseZ(x, ...)
 \item{return.sim}{logical; return the simulated liklihood values}
 
 \item{type}{either "rank" or "cumulative"}
+
+\item{relative}{logical; if true use relative MSE}
+
+\item{log}{logical; if TRUE calculate MSE on logged distirbution. If FALSE use arithmetic scale}
 }
 \value{
 list with elements
 \describe{
    \item{z}{The z-score}
-   \item{obs}{Mean squared error}
    \item{sim}{\code{nrep} Simulated values}
 }
 }
@@ -33,7 +36,7 @@ list with elements
 \code{mseZ.meteDist} Compute z-score of mean squared error
 }
 \details{
-\code{mseZ.meteDist} simulates from a fitted METE distribution (e.g. a species abundance distribution or individual power distribution) and calculates the MSE between the simulated data sets and the METE prediction. The distribution of these values is compared against the MSE of the data to obtain a z-score.
+\code{mseZ.meteDist} simulates from a fitted METE distribution (e.g. a species abundance distribution or individual power distribution) and calculates the MSE between the simulated data sets and the METE prediction. The distribution of these values is compared against the MSE of the data to obtain a z-score in the same was as \code{logLikZ}; see that help document for more details.
 }
 \examples{
 esf1=meteESF(spp=arth$spp,
@@ -41,7 +44,7 @@ esf1=meteESF(spp=arth$spp,
               power=arth$mass^(4/3),
               minE=min(arth$mass^(4/3)))
 sad1=sad(esf1)
-mseZ(sad1, nrep=100)
+mseZ(sad1, nrep=100, type='rank',return.sim=TRUE)
 }
 \author{
 Andy Rominger <ajrominger@gmail.com>, Cory Merow
@@ -50,6 +53,6 @@ Andy Rominger <ajrominger@gmail.com>, Cory Merow
 Harte, J. 2011. Maximum entropy and ecology: a theory of abundance, distribution, and energetics. Oxford University Press.
 }
 \seealso{
-logLik.meteDist
+logLikZ
 }
 

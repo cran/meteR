@@ -1,4 +1,4 @@
-#' @title Compute residuals between METE predictions and date of a meteDist object
+#' @title Compute residuals between METE predictions and data of a meteDist object
 #'
 #' @description
 #' \code{residuals.meteDist} computes residuals between METE predictions and 
@@ -128,7 +128,7 @@ mse.meteRelat <- function(x,...) {
 #' \code{mseZ.meteDist} Compute z-score of mean squared error
 #'
 #' @details
-#' \code{mseZ.meteDist} simulates from a fitted METE distribution (e.g. a species abundance distribution or individual power distribution) and calculates the MSE between the simulated data sets and the METE prediction. The distribution of these values is compared against the MSE of the data to obtain a z-score. 
+#' \code{mseZ.meteDist} simulates from a fitted METE distribution (e.g. a species abundance distribution or individual power distribution) and calculates the MSE between the simulated data sets and the METE prediction. The distribution of these values is compared against the MSE of the data to obtain a z-score in the same was as \code{logLikZ}; see that help document for more details. 
 #' 
 #' @param x a \code{meteDist} object
 #' @param nrep number of simulations from the fitted METE distribution 
@@ -144,16 +144,15 @@ mse.meteRelat <- function(x,...) {
 #'               power=arth$mass^(4/3),
 #'               minE=min(arth$mass^(4/3)))
 #' sad1=sad(esf1)
-#' mseZ(sad1, nrep=100)
+#' mseZ(sad1, nrep=100, type='rank',return.sim=TRUE)
 #' @return list with elements
 #' \describe{
 #'    \item{z}{The z-score}
-#'    \item{obs}{Mean squared error}
 #'    \item{sim}{\code{nrep} Simulated values}
 #' }
 #'
 #' @author Andy Rominger <ajrominger@@gmail.com>, Cory Merow
-#' @seealso logLik.meteDist
+#' @seealso logLikZ
 #' @references Harte, J. 2011. Maximum entropy and ecology: a theory of abundance, distribution, and energetics. Oxford University Press.
 # @aliases - a list of additional topic names that will be mapped to
 # this documentation when the user looks them up from the command
@@ -164,36 +163,69 @@ mseZ <- function(x, ...) {
   UseMethod('mseZ')
 }
 
+
+#' @param relative logical; if true use relative MSE
+#' @param log logical; if TRUE calculate MSE on logged distirbution. If FALSE use arithmetic scale
 #' @rdname mseZ
 #' @export 
 #' @importFrom stats sd
-mseZ.meteDist <- function(x, nrep, return.sim=FALSE,
-                          type=c("rank","cumulative"), ...) {
-  #seems like this should default to relative resid, since that's what is produced by residuals() for the data. need to add an arg for relative=TRUE?s
+mseZ.meteDist <- function(x, nrep, return.sim=TRUE,
+                          type=c("rank","cumulative"), 
+                          relative=TRUE, log=FALSE, ...) {
+  type <- match.arg(type, c('rank', 'cumulative'))
   if(type=='rank') {
+    rad <- meteDist2Rank(x)
     thr <- function(dat) {
-      mean((sort(dat, TRUE) - meteDist2Rank(x))^2)
+      res <- sort(dat, TRUE) - rad
+      if(relative) res <- res/rad
+      
+      return(mean(res^2))
     }
   } else {
     thr <- function(dat) {
       obs <- .ecdf(dat)
-      mean((obs - x$p(obs[,1]))^2)
+      if(log) obs[, 2] <- log(obs[, 2])
+      pred <- x$p(obs[, 1], log.p=log)
+      res <- obs[, 2] - pred
+      if(relative) res <- res/abs(pred)
+      return(mean(res^2))
     }
   }
   
-  mse.obs <- mse.meteDist(x, type)
-  mse.sim <- replicate(nrep, {
-    new.dat <- x$r(length(x$data))
+  mse.obs <- mse(x, type, relative, log)
+  
+  state.var <- sum(x$data)
+
+  mse.sim <- c()
+  cat('simulating data that conform to state variables: \n')
+  for(i in 1:10) {
+    cat(sprintf('attempt %s \n', i))
+    this.sim <- replicate(100*nrep, {
+      new.dat <- x$r(length(x$data))
+      if(abs(sum(new.dat) - state.var) < 0.001*state.var) {
+        return(NA)
+      } else {
+        return(thr(new.dat))
+      }
+    })
     
-    thr(new.dat)
-  })
+    mse.sim <- c(mse.sim, this.sim[!is.na(this.sim)])
+    if(length(mse.sim) >= nrep) break
+  }
+  
+  if(length(mse.sim) >= nrep) {
+    mse.sim <- c(mse.sim[1:nrep], mse.obs)
+  } else {
+    warning(sprintf('%s (not %s as desired) simulated replicates found that match the state variables', 
+                    length(mse.sim), nrep))
+    mse.sim <- c(mse.sim, mse.obs)
+  }
   
   if(return.sim) {
-    return(list(z=(mse.obs-mean(mse.sim))/sd(mse.sim), 
-                obs=mse.obs,
-                sim=mse.sim))
+    return(list(z=((mse.obs-mean(mse.sim))/sd(mse.sim))^2, 
+                sim=((mse.sim-mean(mse.sim))/sd(mse.sim))^2))
   } else {
-    return(list(z=(mse.obs-mean(mse.sim))/sd(mse.sim)))
+    return(list(z=((mse.obs-mean(mse.sim))/sd(mse.sim))^2))
   }
 }
 
